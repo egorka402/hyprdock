@@ -1,0 +1,32 @@
+{
+  "radius": 60,
+  "size": 40,
+  "spacing": 30,
+  "bgOpacity": 80,
+  "border": "dark",
+  "hide": "never",
+  "onlineIcons": true,
+  "items": [
+    {
+      "kind": "app",
+      "name": "Firefox",
+      "icon": "",
+      "id": "firefox.desktop",
+      "cmd": [
+        "firefox"
+      ],
+      "wmClass": "firefox",
+      "uid": 1
+    },
+    {
+      "kind": "site",
+      "name": "GitHub",
+      "icon": "",
+      "url": "https://github.com",
+      "browser": [
+        "firefox"
+      ],
+      "uid": 2
+    }
+  ]
+}

@@ -1,0 +1,6 @@
+*.tar.gz
+*.log
+.qmlls.ini
+.DS_Store
+*~
+*.swp

@@ -1,0 +1,33 @@
+#!/bin/sh
+# Hyprdock command line launcher.
+#
+#   hyprdock            start the dock
+#   hyprdock settings   open the settings window
+#   hyprdock toggle     open/close the settings window
+#   hyprdock stop       stop the dock
+#   hyprdock restart    restart the dock
+
+QS=""
+for c in qs quickshell; do
+    command -v "$c" >/dev/null 2>&1 && QS="$c" && break
+done
+[ -n "$QS" ] || { echo "hyprdock: Quickshell is not installed (see INSTALL.md)" >&2; exit 1; }
+
+# Shell directory: next to this script when running from the repo, otherwise the installed copy.
+HERE=$(cd "$(dirname "$(readlink -f "$0")")" && pwd)
+if [ -f "$HERE/../shell.qml" ]; then
+    DIR="$HERE/.."
+else
+    DIR="${XDG_DATA_HOME:-$HOME/.local/share}/hyprdock"
+fi
+
+case "$1" in
+    ""|start)  exec "$QS" -p "$DIR" ;;
+    settings)  exec "$QS" -p "$DIR" ipc call hyprdock settings ;;
+    toggle)    exec "$QS" -p "$DIR" ipc call hyprdock toggle ;;
+    stop)      exec "$QS" -p "$DIR" kill ;;
+    restart)   "$QS" -p "$DIR" kill 2>/dev/null; sleep 0.3; exec "$QS" -p "$DIR" ;;
+    -h|--help|help)
+        sed -n '2,9p' "$0" | sed 's/^# \{0,1\}//' ;;
+    *) echo "hyprdock: unknown command '$1' (try: hyprdock help)" >&2; exit 1 ;;
+esac
