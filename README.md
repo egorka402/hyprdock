@@ -34,7 +34,7 @@ Everything is configured in a small built-in settings window. No config files to
 ```sh
 git clone https://github.com/egorka402/hyprdock.git
 cd hyprdock
-./install.sh
+./install.sh --deps
 hyprdock
 ```
 
