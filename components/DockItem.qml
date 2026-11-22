@@ -120,7 +120,7 @@ Item {
 
         onClicked: mouse => {
             if (mouse.button === Qt.MiddleButton)
-                Launcher.launch(root.item);       // always a new instance
+                Launcher.launchNew(root.item);    // always a new window
             else if (mouse.button === Qt.RightButton)
                 UiState.settingsOpen = true;      // quick way into settings
             else

@@ -18,6 +18,7 @@ Singleton {
     readonly property int bgOpacity: store.bgOpacity  // 0 (invisible) .. 100 (solid)
     readonly property string border: store.border === "light" ? "light" : "dark"     // dark | light
     readonly property string hide: store.hide         // never | auto
+    readonly property string runningClick: store.runningClick === "new" ? "new" : "focus"   // click on a running app
     readonly property bool onlineIcons: store.onlineIcons
     readonly property var items: root.normalizeItems(store.items)
 
@@ -145,6 +146,7 @@ Singleton {
             property int bgOpacity: 80
             property string border: "dark"
             property string hide: "never"
+            property string runningClick: "focus"
             property bool onlineIcons: true
             property var items: []
         }

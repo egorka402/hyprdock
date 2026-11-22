@@ -162,6 +162,32 @@ FloatingWindow {
                     onPicked: v => Config.setValue("hide", v)
                 }
 
+                Text {
+                    text: "click on a running app"
+                    color: Theme.text
+                    font.family: Theme.font
+                    font.pixelSize: 13
+                }
+
+                Segmented {
+                    Layout.fillWidth: true
+                    model: [
+                        { label: "show its window", value: "focus" },
+                        { label: "open a new window", value: "new" }
+                    ]
+                    current: Config.runningClick
+                    onPicked: v => Config.setValue("runningClick", v)
+                }
+
+                Text {
+                    Layout.fillWidth: true
+                    text: "Middle click on an icon always opens a new window."
+                    color: Theme.dim
+                    font.family: Theme.font
+                    font.pixelSize: 10
+                    wrapMode: Text.WordWrap
+                }
+
                 Toggle {
                     Layout.fillWidth: true
                     label: "online website icons"
