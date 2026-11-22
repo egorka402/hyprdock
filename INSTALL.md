@@ -13,7 +13,8 @@ cd hyprdock
 ```
 
 `--deps` installs the missing dependencies (Quickshell and the JetBrains Mono font), shows you every command first,
-and asks before running them with `sudo`. Then it installs Hyprdock itself.
+and asks before running them with `sudo`. Then it installs Hyprdock itself and, if you use a Hyprland Lua config
+(`hyprland.lua`), offers to add Hyprdock to your autostart (`Add it? [y/N]`).
 
 Handy options:
 
@@ -89,15 +90,28 @@ and open a new terminal.
 hyprdock
 ```
 
-The first start creates an empty dock with a "+" button. Click it (or run `hyprdock settings`) and add your apps.
+Hyprdock runs in the background, so you can close the terminal. The first start creates an empty dock with a "+" button.
+Click it (or run `hyprdock settings`) and add your apps.
+
+Other commands: `hyprdock stop`, `hyprdock restart`, `hyprdock logs` (show errors), `hyprdock run` (run in the terminal).
 
 ## Autostart
 
-Add to your `hyprland.lua` (inside your `hl.on("hyprland.start", ...)` block, with the full path):
+If you use a Hyprland **Lua** config (`~/.config/hypr/hyprland.lua`), `./install.sh` offers to add this block for you
+(it makes a backup first, and `./install.sh --remove` takes it out again):
 
 ```lua
-hl.exec_cmd("/home/YOUR_USER/.local/bin/hyprdock")
+hl.on("hyprland.start", function()
+    hl.exec_cmd("/home/YOUR_USER/.local/bin/hyprdock")
+end)
 ```
+
+Doing it yourself:
+- **hyprland.lua:** put `hl.exec_cmd("/home/YOUR_USER/.local/bin/hyprdock")` inside your existing `hl.on("hyprland.start", ...)` block
+  (or into the script it runs).
+- **hyprland.conf (old format):** add `exec-once = /home/YOUR_USER/.local/bin/hyprdock`
+
+Use the full path, because Hyprland doesn't always see the PATH from your `~/.bashrc`.
 
 Optional keybind to open settings:
 
@@ -125,7 +139,7 @@ rm -rf ~/.config/hyprdock    # optional: also delete your settings
 
 ## Troubleshooting
 
-Run `hyprdock` in a terminal, errors are printed there.
+Run `hyprdock logs` to see the latest errors (or `hyprdock run` to watch them live in the terminal).
 
 | Problem | What to try |
 |---------|-------------|

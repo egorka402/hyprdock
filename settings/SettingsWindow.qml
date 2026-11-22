@@ -9,9 +9,9 @@ FloatingWindow {
 
     title: "Hyprdock"
     color: Theme.surface
-    minimumSize: Qt.size(460, 560)
+    minimumSize: Qt.size(460, 620)
     implicitWidth: 480
-    implicitHeight: 720
+    implicitHeight: 780
 
     visible: UiState.settingsOpen
     onVisibleChanged: {
@@ -20,6 +20,12 @@ FloatingWindow {
     }
 
     property bool adding: false
+
+    // The dock stays visible while settings are open and can cover the bottom of this window.
+    // Keep the bottom of the content above it (same size formula as in Dock.qml).
+    readonly property real screenH: Quickshell.screens.length > 0 ? Quickshell.screens[0].height : 1080
+    readonly property real dockIcon: 28 + (Math.max(36, screenH * 0.10 - 20) - 28) * (Config.size / 100)
+    readonly property real dockReserve: Math.round(dockIcon * 1.3 + 44)
 
     Rectangle {
         anchors.fill: parent
@@ -30,6 +36,7 @@ FloatingWindow {
             id: page
             anchors.fill: parent
             anchors.margins: 20
+            anchors.bottomMargin: 20 + win.dockReserve
             visible: !win.adding
             clip: true
             contentWidth: width
@@ -213,6 +220,7 @@ FloatingWindow {
         AddPanel {
             anchors.fill: parent
             anchors.margins: 20
+            anchors.bottomMargin: 20 + win.dockReserve
             visible: win.adding
             onDone: win.adding = false
         }

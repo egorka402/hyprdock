@@ -4,16 +4,22 @@ import Quickshell
 import qs.components
 import qs.services
 
-// "Add item" page: pick an installed app, or paste a site link and choose a browser.
+// "Add item" page: pick one or several installed apps, or paste one or several site links
+// and choose a browser. Everything chosen is added to the dock with one click.
 Item {
     id: root
 
     signal done()
 
     property string mode: "app"      // app | site
-    property var selected: null      // chosen DesktopEntry (apps)
+    property var chosen: []         // chosen DesktopEntry objects (apps)
     property var browser: null       // chosen DesktopEntry, null = system default
     property string error: ""
+
+    // Name and icon can only be set by hand when exactly one thing is being added.
+    readonly property int count: root.mode === "app" ? root.chosen.length : root.urls().length
+    readonly property bool canName: root.count <= 1
+    readonly property string addLabel: root.count > 1 ? "add " + root.count + " to dock" : "add to dock"
 
     function allApps() {
         return [...DesktopEntries.applications.values].filter(e => !e.noDisplay).sort((a, b) => a.name.localeCompare(b.name));
@@ -29,72 +35,109 @@ Item {
     }
 
     function cleanCommand(entry) {
-        return Array.from(entry.command).filter(a => !a.startsWith("%"));
+        const args = Array.from(entry.command).filter(a => !a.startsWith("%"));
+        // "app --  %U" leaves a dangling "--" once the placeholder is removed
+        if (args.length > 1 && args[args.length - 1] === "--")
+            args.pop();
+        return args;
+    }
+
+    // One link per line (or separated by spaces).
+    function urls() {
+        return urlArea.text.split(/\s+/).filter(s => s.length > 0);
+    }
+
+    function toggle(entry) {
+        const list = root.chosen.slice();
+        const i = list.indexOf(entry);
+        if (i >= 0)
+            list.splice(i, 1);
+        else
+            list.push(entry);
+        root.chosen = list;
+        root.error = "";
+        root.syncFields();
+    }
+
+    // With exactly one app chosen, prefill the name and icon so they can be edited.
+    function syncFields() {
+        if (root.chosen.length === 1) {
+            nameField.text = root.chosen[0].name;
+            iconField.text = root.chosen[0].icon ? String(root.chosen[0].icon) : "";
+        } else if (root.chosen.length === 0) {
+            nameField.clear();
+            iconField.clear();
+        }
     }
 
     function reset() {
-        root.selected = null;
+        root.chosen = [];
         root.browser = null;
         root.error = "";
         search.clear();
         nameField.clear();
         iconField.clear();
         cmdField.clear();
-        urlField.clear();
+        urlArea.clear();
     }
 
     function submit() {
         const name = nameField.text.trim();
         const icon = iconField.text.trim();
-        let item = null;
+        const items = [];
 
         if (root.mode === "app") {
-            if (root.selected) {
-                item = {
-                    kind: "app",
-                    name: name || root.selected.name,
-                    icon: icon,
-                    id: root.selected.id,
-                    cmd: root.cleanCommand(root.selected),
-                    wmClass: root.selected.startupClass || String(root.selected.id).replace(/\.desktop$/, "")
-                };
+            if (root.chosen.length > 0) {
+                const single = root.chosen.length === 1;
+                for (const e of root.chosen) {
+                    items.push({
+                        kind: "app",
+                        name: single ? (name || e.name) : e.name,
+                        icon: single ? icon : (e.icon ? String(e.icon) : ""),
+                        id: e.id,
+                        cmd: root.cleanCommand(e),
+                        wmClass: e.startupClass || String(e.id).replace(/\.desktop$/, "")
+                    });
+                }
             } else if (cmdField.text.trim() !== "") {
                 if (name === "") {
                     root.error = "Give it a name.";
                     return;
                 }
                 const parts = cmdField.text.trim().split(/\s+/);
-                item = {
+                items.push({
                     kind: "app",
                     name: name,
                     icon: icon,
                     id: "",
                     cmd: parts,
                     wmClass: parts[0].split("/").pop()
-                };
+                });
             } else {
-                root.error = "Pick an app from the list or type a command.";
+                root.error = "Pick one or more apps from the list, or type a command.";
                 return;
             }
         } else {
-            let url = urlField.text.trim();
-            if (url === "") {
+            const links = root.urls();
+            if (links.length === 0) {
                 root.error = "Paste a link first.";
                 return;
             }
-            if (!/^[a-zA-Z][a-zA-Z0-9+.-]*:\/\//.test(url))
-                url = "https://" + url;
-            const host = url.replace(/^[a-zA-Z]+:\/\//, "").split("/")[0];
-            item = {
-                kind: "site",
-                name: name || host,
-                icon: icon,
-                url: url,
-                browser: root.browser ? root.cleanCommand(root.browser) : ["xdg-open"]
-            };
+            const single = links.length === 1;
+            for (const raw of links) {
+                const url = /^[a-zA-Z][a-zA-Z0-9+.-]*:\/\//.test(raw) ? raw : "https://" + raw;
+                const host = url.replace(/^[a-zA-Z]+:\/\//, "").split("/")[0];
+                items.push({
+                    kind: "site",
+                    name: single ? (name || host) : host,
+                    icon: single ? icon : "",
+                    url: url,
+                    browser: root.browser ? root.cleanCommand(root.browser) : ["xdg-open"]
+                });
+            }
         }
 
-        Config.addItem(item);
+        Config.addItems(items);
         root.reset();
         root.done();
     }
@@ -118,7 +161,7 @@ Item {
                 Layout.fillWidth: true
             }
             Text {
-                text: "add item"
+                text: "add items"
                 color: Theme.text
                 font.family: Theme.font
                 font.pixelSize: 14
@@ -129,8 +172,8 @@ Item {
         Segmented {
             Layout.fillWidth: true
             model: [
-                { label: "app", value: "app" },
-                { label: "website", value: "site" }
+                { label: "apps", value: "app" },
+                { label: "websites", value: "site" }
             ]
             current: root.mode
             onPicked: value => {
@@ -139,12 +182,24 @@ Item {
             }
         }
 
-        // ---------- app: search + list ----------
-        Field {
-            id: search
+        // ---------- apps: search + list (tick as many as you like) ----------
+        RowLayout {
             Layout.fillWidth: true
             visible: root.mode === "app"
-            placeholder: "search installed apps..."
+            spacing: 10
+
+            Field {
+                id: search
+                Layout.fillWidth: true
+                placeholder: "search installed apps..."
+            }
+            Text {
+                visible: root.chosen.length > 0
+                text: root.chosen.length + " selected"
+                color: Theme.accent
+                font.family: Theme.font
+                font.pixelSize: 11
+            }
         }
 
         ListView {
@@ -165,7 +220,7 @@ Item {
                 id: appRow
                 required property var modelData
 
-                readonly property bool active: root.selected === modelData
+                readonly property bool active: root.chosen.indexOf(modelData) >= 0
 
                 width: appList.width
                 height: 38
@@ -191,7 +246,7 @@ Item {
                 Text {
                     anchors.left: rowIcon.right
                     anchors.leftMargin: 10
-                    anchors.right: parent.right
+                    anchors.right: tick.left
                     anchors.rightMargin: 8
                     anchors.verticalCenter: parent.verticalCenter
                     text: appRow.modelData.name
@@ -201,15 +256,34 @@ Item {
                     elide: Text.ElideRight
                 }
 
+                // checkbox
+                Rectangle {
+                    id: tick
+                    anchors.right: parent.right
+                    anchors.rightMargin: 10
+                    anchors.verticalCenter: parent.verticalCenter
+                    width: 18
+                    height: 18
+                    radius: 5
+                    color: appRow.active ? Theme.accent : "transparent"
+                    border.width: 1
+                    border.color: appRow.active ? Theme.accent : Theme.line
+
+                    Text {
+                        anchors.centerIn: parent
+                        visible: appRow.active
+                        text: "✓"
+                        color: Theme.surface
+                        font.family: Theme.font
+                        font.pixelSize: 12
+                        font.bold: true
+                    }
+                }
+
                 MouseArea {
                     anchors.fill: parent
                     cursorShape: Qt.PointingHandCursor
-                    onClicked: {
-                        root.selected = appRow.modelData;
-                        nameField.text = appRow.modelData.name;
-                        iconField.text = appRow.modelData.icon ? String(appRow.modelData.icon) : "";
-                        root.error = "";
-                    }
+                    onClicked: root.toggle(appRow.modelData)
                 }
             }
         }
@@ -221,12 +295,14 @@ Item {
             placeholder: "or a custom command, e.g. kitty -e btop"
         }
 
-        // ---------- website: link + browser ----------
-        Field {
-            id: urlField
+        // ---------- websites: links + browser ----------
+        MultiField {
+            id: urlArea
             Layout.fillWidth: true
+            Layout.fillHeight: true
+            Layout.minimumHeight: 90
             visible: root.mode === "site"
-            placeholder: "https://example.com"
+            placeholder: "paste links, one per line:\nhttps://example.com\nhttps://another.org"
         }
 
         Text {
@@ -301,23 +377,29 @@ Item {
             }
         }
 
-        Item {
-            Layout.fillWidth: true
-            Layout.fillHeight: true
-            visible: root.mode === "site"
-        }
-
-        // ---------- shared: name + icon ----------
+        // ---------- shared: name + icon (only when adding a single item) ----------
         Field {
             id: nameField
             Layout.fillWidth: true
+            visible: root.canName
             placeholder: "name (optional for sites)"
         }
 
         Field {
             id: iconField
             Layout.fillWidth: true
+            visible: root.canName
             placeholder: "icon (optional): theme name or /path/to/image.png"
+        }
+
+        Text {
+            Layout.fillWidth: true
+            visible: !root.canName
+            text: "Several items: each keeps its own name and icon."
+            color: Theme.dim
+            font.family: Theme.font
+            font.pixelSize: 10
+            wrapMode: Text.WordWrap
         }
 
         Text {
@@ -332,7 +414,7 @@ Item {
 
         Btn {
             Layout.fillWidth: true
-            text: "add to dock"
+            text: root.addLabel
             primary: true
             onClicked: root.submit()
         }

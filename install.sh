@@ -152,9 +152,87 @@ install_deps() {
     "deps_$family"
 }
 
+# ---- autostart (Hyprland Lua config only) -----------------------------------
+
+HYPR_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/hypr"
+LUA="$HYPR_DIR/hyprland.lua"
+MARK_BEGIN="-- >>> hyprdock autostart (added by hyprdock install.sh)"
+MARK_END="-- <<< hyprdock autostart"
+
+autostart_block() {
+    printf '%s\n' "$MARK_BEGIN"
+    printf '%s\n' 'hl.on("hyprland.start", function()'
+    printf '%s\n' "    hl.exec_cmd(\"$BIN/hyprdock\")"
+    printf '%s\n' 'end)'
+    printf '%s\n' "$MARK_END"
+}
+
+manual_autostart_help() {
+    cat <<MSG
+  Add Hyprdock to your Hyprland autostart yourself:
+    - hyprland.lua (new format), inside your hl.on("hyprland.start", ...) block:
+          hl.exec_cmd("$BIN/hyprdock")
+    - hyprland.conf (old format):
+          exec-once = $BIN/hyprdock
+MSG
+}
+
+setup_autostart() {
+    echo "==> Autostart"
+    if [ ! -f "$LUA" ]; then
+        echo "  No hyprland.lua found in $HYPR_DIR."
+        manual_autostart_help
+        return 0
+    fi
+    if grep -qF ">>> hyprdock autostart" "$LUA"; then
+        echo "  Already set up."
+        return 0
+    fi
+    if grep -rqI --exclude='*.hyprdock-bak' "hyprdock" "$HYPR_DIR" 2>/dev/null; then
+        echo "  [i] Your Hyprland config already mentions hyprdock, so I'm not changing it."
+        return 0
+    fi
+
+    echo "  This block can be added to the end of $LUA:"
+    echo
+    autostart_block | sed 's/^/      /'
+    echo
+    if [ "$YES" -eq 1 ]; then
+        echo "  Skipped (-y never changes your config). Run ./install.sh again to be asked."
+        return 0
+    fi
+    printf "  Add it? [y/N] "
+    read -r answer
+    case "$answer" in
+        y|Y|yes|YES) ;;
+        *) echo "  Skipped."; manual_autostart_help; return 0 ;;
+    esac
+    cp "$LUA" "$LUA.hyprdock-bak"
+    { echo; autostart_block; } >> "$LUA"
+    echo "  Added. Backup of your old config: $LUA.hyprdock-bak"
+    echo "  Hyprdock will start with Hyprland from the next login."
+}
+
+remove_autostart() {
+    if [ -f "$LUA" ] && grep -qF ">>> hyprdock autostart" "$LUA"; then
+        cp "$LUA" "$LUA.hyprdock-bak"
+        # Drop our block and the single blank line we put in front of it.
+        awk '
+            /^$/ && !skip { if (held) print ""; held = 1; next }
+            /-- >>> hyprdock autostart/ { skip = 1; held = 0; next }
+            skip { if (/-- <<< hyprdock autostart/) skip = 0; next }
+            { if (held) { print ""; held = 0 } print }
+            END { if (held) print "" }
+        ' "$LUA.hyprdock-bak" > "$LUA"
+        echo "Autostart block removed from $LUA (backup: $LUA.hyprdock-bak)."
+    fi
+}
+
 # ----------------------------------------------------------------------------
 
 if [ "$REMOVE" -eq 1 ]; then
+    "$BIN/hyprdock" stop 2>/dev/null || true
+    remove_autostart
     rm -rf "$DATA" "$BIN/hyprdock"
     echo "Hyprdock removed. Settings are still in ~/.config/hyprdock (delete by hand if you want)."
     exit 0
@@ -182,13 +260,14 @@ case ":$PATH:" in
        echo "      export PATH=\"\$HOME/.local/bin:\$PATH\"" ;;
 esac
 
+setup_autostart
+
 cat <<MSG
 
 Done.
 
-Start it now:        hyprdock
+Start it now:        hyprdock            (runs in the background)
+Restart / stop:      hyprdock restart / hyprdock stop
 Open the settings:   hyprdock settings   (or right-click any icon in the dock)
-
-Autostart: add this line to your hyprland.lua:
-    hl.exec_cmd("hyprdock")
+Something wrong?     hyprdock logs
 MSG

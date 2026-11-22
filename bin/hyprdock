@@ -1,11 +1,13 @@
 #!/bin/sh
 # Hyprdock command line launcher.
 #
-#   hyprdock            start the dock
+#   hyprdock            start the dock in the background
+#   hyprdock run        start the dock in this terminal (shows errors live)
 #   hyprdock settings   open the settings window
 #   hyprdock toggle     open/close the settings window
 #   hyprdock stop       stop the dock
 #   hyprdock restart    restart the dock
+#   hyprdock logs       show the end of the log file
 
 QS=""
 for c in qs quickshell; do
@@ -20,14 +22,51 @@ if [ -f "$HERE/../shell.qml" ]; then
 else
     DIR="${XDG_DATA_HOME:-$HOME/.local/share}/hyprdock"
 fi
+DIR=$(cd "$DIR" && pwd)
+
+LOGDIR="${XDG_STATE_HOME:-$HOME/.local/state}/hyprdock"
+LOG="$LOGDIR/hyprdock.log"
+
+is_running() {
+    command -v pgrep >/dev/null 2>&1 && pgrep -f "(qs|quickshell).* -p $DIR( |\$)" >/dev/null 2>&1
+}
+
+start_bg() {
+    if is_running; then
+        echo "hyprdock: already running"
+        return 0
+    fi
+    mkdir -p "$LOGDIR"
+    if command -v setsid >/dev/null 2>&1; then
+        setsid "$QS" -p "$DIR" >"$LOG" 2>&1 </dev/null &
+    else
+        nohup "$QS" -p "$DIR" >"$LOG" 2>&1 </dev/null &
+    fi
+    sleep 1
+    if is_running; then
+        echo "hyprdock: started (log: $LOG)"
+    else
+        echo "hyprdock: failed to start. Last lines of the log:" >&2
+        tail -n 20 "$LOG" >&2
+        exit 1
+    fi
+}
+
+stop_dock() {
+    "$QS" -p "$DIR" kill 2>/dev/null
+}
 
 case "$1" in
-    ""|start)  exec "$QS" -p "$DIR" ;;
-    settings)  exec "$QS" -p "$DIR" ipc call hyprdock settings ;;
-    toggle)    exec "$QS" -p "$DIR" ipc call hyprdock toggle ;;
-    stop)      exec "$QS" -p "$DIR" kill ;;
-    restart)   "$QS" -p "$DIR" kill 2>/dev/null; sleep 0.3; exec "$QS" -p "$DIR" ;;
+    ""|start)  start_bg ;;
+    run)       exec "$QS" -p "$DIR" ;;
+    settings)  is_running || { start_bg; }
+               exec "$QS" -p "$DIR" ipc call hyprdock settings ;;
+    toggle)    is_running || { start_bg; }
+               exec "$QS" -p "$DIR" ipc call hyprdock toggle ;;
+    stop)      stop_dock ;;
+    restart)   stop_dock; sleep 0.5; start_bg ;;
+    logs)      [ -f "$LOG" ] && tail -n 50 "$LOG" || echo "hyprdock: no log yet" ;;
     -h|--help|help)
-        sed -n '2,9p' "$0" | sed 's/^# \{0,1\}//' ;;
+        sed -n '2,11p' "$0" | sed 's/^# \{0,1\}//' ;;
     *) echo "hyprdock: unknown command '$1' (try: hyprdock help)" >&2; exit 1 ;;
 esac

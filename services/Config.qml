@@ -19,7 +19,20 @@ Singleton {
     readonly property string border: store.border === "light" ? "light" : "dark"     // dark | light
     readonly property string hide: store.hide         // never | auto
     readonly property bool onlineIcons: store.onlineIcons
-    readonly property var items: Array.isArray(store.items) ? store.items : []
+    readonly property var items: root.normalizeItems(store.items)
+
+    // The list read from the JSON file may not be a "real" JS array (it can be an array-like wrapper),
+    // so never rely on Array.isArray here. Copy every entry into plain JS objects instead.
+    function normalizeItems(raw) {
+        if (raw === undefined || raw === null)
+            return [];
+        try {
+            return Array.from(raw).map(x => JSON.parse(JSON.stringify(x))).filter(x => x && typeof x === "object");
+        } catch (e) {
+            console.warn("hyprdock: could not read items from config: " + e);
+            return [];
+        }
+    }
 
     function setValue(key, value) {
         store[key] = value;
@@ -50,11 +63,19 @@ Singleton {
         return max + 1;
     }
 
-    function addItem(item) {
+    // Add several items with a single save.
+    function addItems(newItems) {
         const list = root.items.slice();
-        item.uid = root.nextUid();
-        list.push(item);
+        let uid = root.nextUid();
+        for (const it of newItems) {
+            it.uid = uid++;
+            list.push(it);
+        }
         store.items = list;
+    }
+
+    function addItem(item) {
+        root.addItems([item]);
     }
 
     function removeItem(index) {
@@ -92,7 +113,9 @@ Singleton {
 
         // Older/hand-written configs may have items without a uid: number them.
         onLoaded: {
-            const list = Array.from(store.items || []);
+            // Shows up in `hyprdock logs`: helps to find problems with saved items.
+            console.log("hyprdock: config loaded from " + file.path + ", items in file: " + root.items.length);
+            const list = root.items.slice();
             let max = 0;
             for (const it of list) {
                 if (typeof it.uid === "number")
