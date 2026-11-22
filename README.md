@@ -3,7 +3,6 @@
 A minimal, customizable app dock for [Hyprland](https://hypr.land), built with [Quickshell](https://quickshell.org).
 Everything is configured in a small built-in settings window. No config files to edit by hand.
 
-<!-- Add a screenshot: put it in docs/screenshot.png and uncomment the next line -->
 <!-- ![Hyprdock](docs/screenshot.png) -->
 
 ## Features
